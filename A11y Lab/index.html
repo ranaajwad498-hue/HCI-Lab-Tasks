@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A11y Lab - Accessibility Learning & Testing</title>
+<style>
+  /* Global & CSS Variables */
+  :root {
+    --bg: #ffffff; --text: #1a1a1a; --surface: #f4f4f4; --border: #cccccc;
+    --primary: #0056b3; --primary-hover: #003d82;
+    --focus: #d93f00; --error: #d32f2f; --success: #28a745;
+    font-family: system-ui, -apple-system, sans-serif;
+    line-height: 1.5;
+  }
+  [data-theme="dark"] {
+    --bg: #121212; --text: #e0e0e0; --surface: #1e1e1e; --border: #333333;
+    --primary: #66b2ff; --primary-hover: #99ccff;
+    --focus: #ffb74d; --error: #ff5252; --success: #4caf50;
+  }
+  [data-theme="hc"] {
+    --bg: #000000; --text: #ffffff; --surface: #000000; --border: #ffffff;
+    --primary: #ffff00; --primary-hover: #ffffff;
+    --focus: #00ff00; --error: #ff0000; --success: #00ff00;
+  }
+  
+  *, *::before, *::after { box-sizing: border-box; }
+  body { background-color: var(--bg); color: var(--text); margin: 0; padding: 0 1rem 2rem; transition: background 0.2s; }
+  
+  /* Utilities */
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .skip-link {
+    position: absolute; top: -40px; left: 0; background: var(--primary); color: #fff;
+    padding: 8px; z-index: 100; text-decoration: none;
+  }
+  .skip-link:focus { top: 0; }
+  
+  /* Focus Styles (SC 2.4.7) */
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  
+  /* Typography & Layout */
+  h1, h2, h3 { color: var(--text); }
+  button, input, select { font: inherit; background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 0.5rem; border-radius: 4px; }
+  button { cursor: pointer; background: var(--primary); color: #fff; border: none; font-weight: bold; }
+  button:hover { background: var(--primary-hover); }
+  [data-theme="hc"] button { background: var(--bg); color: var(--primary); border: 2px solid var(--primary); }
+  
+  /* Tabs */
+  [role="tablist"] { display: flex; gap: 0.5rem; border-bottom: 2px solid var(--border); margin-bottom: 1rem; flex-wrap: wrap; }
+  [role="tab"] { background: var(--surface); color: var(--text); padding: 0.75rem 1rem; border: none; border-radius: 4px 4px 0 0; }
+  [role="tab"][aria-selected="true"] { background: var(--primary); color: #fff; border-bottom: none; }
+  [data-theme="hc"] [role="tab"][aria-selected="true"] { border: 2px solid var(--primary); border-bottom: none; }
+  [role="tabpanel"] { display: none; }
+  [role="tabpanel"].active { display: block; animation: fadeIn 0.3s; }
+  
+  /* Module 1 Components */
+  .component-block { border: 1px solid var(--border); padding: 1rem; margin-bottom: 1rem; border-radius: 4px; position: relative; }
+  .aria-inspector .component-block::after {
+    content: "Roles: " attr(data-inspector);
+    display: block; background: #ffeeb5; color: #333; padding: 0.5rem; font-size: 0.85rem; margin-top: 1rem; border-left: 4px solid #ffcc00;
+  }
+  
+  /* Accordion */
+  .accordion-trigger { width: 100%; text-align: left; display: flex; justify-content: space-between; }
+  .accordion-panel { display: none; padding: 1rem; border: 1px solid var(--border); border-top: none; }
+  .accordion-trigger[aria-expanded="true"] + .accordion-panel { display: block; }
+  
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal-dialog { background: var(--bg); padding: 2rem; border-radius: 8px; max-width: 500px; width: 90%; border: 2px solid var(--border); }
+  
+  /* Event Log */
+  #event-log { position: fixed; bottom: 1rem; right: 1rem; width: 300px; height: 150px; background: var(--surface); border: 2px solid var(--border); overflow-y: auto; padding: 0.5rem; font-size: 0.85rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 500;}
+  #event-log ul { list-style: none; padding: 0; margin: 0; }
+  #event-log li { border-bottom: 1px solid var(--border); padding: 0.25rem 0; }
+  
+  /* Module 2 Tester */
+  .color-checker { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .preview-box { padding: 2rem; text-align: center; border: 1px solid var(--border); margin-top: 1rem; border-radius: 4px; font-weight: bold; }
+  .pass { color: var(--success); font-weight: bold; }
+  .fail { color: var(--error); font-weight: bold; }
+  .simulation-filters { filter: none; }
+  
+  /* Module 3 Workshop */
+  .split-view { display: grid; grid-template-columns: 1fr; gap: 2rem; }
+  @media(min-width: 800px) { .split-view { grid-template-columns: 1fr 1fr; } }
+  .ui-mockup { border: 2px solid var(--border); padding: 1rem; background: #fff; color: #000; }
+  .bad-ui .bad-btn { background: blue; color: darkblue; cursor: pointer; padding: 5px; } /* Contrast fail, no focus, div acting as btn */
+  .bad-ui input { border: 1px solid #ccc; } /* Low contrast border */
+  
+  /* Module 4 Report */
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  th, td { border: 1px solid var(--border); padding: 0.5rem; text-align: left; }
+  th { background: var(--surface); }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+<!-- SVG Filters for Color Blindness Simulation -->
+<svg style="width:0;height:0;position:absolute;" aria-hidden="true">
+  <filter id="protanopia"><feColorMatrix type="matrix" values="0.567, 0.433, 0, 0, 0  0.558, 0.442, 0, 0, 0  0, 0.242, 0.758, 0, 0  0, 0, 0, 1, 0"/></filter>
+  <filter id="deuteranopia"><feColorMatrix type="matrix" values="0.625, 0.375, 0, 0, 0  0.7, 0.3, 0, 0, 0  0, 0.3, 0.7, 0, 0  0, 0, 0, 1, 0"/></filter>
+  <filter id="achromatopsia"><feColorMatrix type="matrix" values="0.299, 0.587, 0.114, 0, 0  0.299, 0.587, 0.114, 0, 0  0.299, 0.587, 0.114, 0, 0  0, 0, 0, 1, 0"/></filter>
+</svg>
+</head>
+<body>
+
+<a href="#main-content" class="skip-link">Skip to main content</a>
+
+<header>
+  <h1>A11y Lab</h1>
+  <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+    <label for="theme-select">Theme:</label>
+    <select id="theme-select">
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+      <option value="hc">High Contrast</option>
+    </select>
+  </div>
+  <nav aria-label="Modules">
+    <div role="tablist" id="main-tablist">
+      <button role="tab" aria-selected="true" aria-controls="panel-1" id="tab-1" tabindex="0">1. Keyboard & ARIA Lab</button>
+      <button role="tab" aria-selected="false" aria-controls="panel-2" id="tab-2" tabindex="-1">2. Contrast & Mag Tester</button>
+      <button role="tab" aria-selected="false" aria-controls="panel-3" id="tab-3" tabindex="-1">3. Remediation Workshop</button>
+      <button role="tab" aria-selected="false" aria-controls="panel-4" id="tab-4" tabindex="-1">4. Audit Checklist</button>
+    </div>
+  </nav>
+</header>
+
+<main id="main-content" tabindex="-1">
+  <!-- MODULE 1: ARIA LAB -->
+  <section id="panel-1" role="tabpanel" tabindex="0" aria-labelledby="tab-1" class="active">
+    <h2>Keyboard & Screen Reader Lab</h2>
+    <div style="margin-bottom: 1rem;">
+      <label><input type="checkbox" id="inspector-toggle"> Enable ARIA Inspector (shows roles/states on components)</label>
+    </div>
+    
+    <div id="aria-components">
+      <!-- Accordion -->
+      <div class="component-block" data-inspector="button[aria-expanded, aria-controls], region[aria-labelledby]">
+        <h3>Accordion</h3>
+        <button class="accordion-trigger" id="acc-btn-1" aria-expanded="false" aria-controls="acc-panel-1">
+          <span>What is WAI-ARIA?</span>
+          <span aria-hidden="true" class="icon">+</span>
+        </button>
+        <div id="acc-panel-1" class="accordion-panel" role="region" aria-labelledby="acc-btn-1">
+          Accessible Rich Internet Applications (ARIA) is a set of attributes that define ways to make web content and web applications more accessible to people with disabilities.
+        </div>
+      </div>
+
+      <!-- Modal -->
+      <div class="component-block" data-inspector="dialog[aria-modal=true, aria-labelledby]">
+        <h3>Modal Dialog</h3>
+        <button id="open-modal-btn">Open Profile Modal</button>
+        <div id="modal-1" class="modal-overlay" aria-hidden="true">
+          <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+            <h4 id="modal-title">User Profile</h4>
+            <p>Focus is trapped inside this modal while open. Press ESC to close.</p>
+            <button id="close-modal-btn">Close Modal</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Validation & Live Region -->
+      <div class="component-block" data-inspector="input[aria-required, aria-invalid, aria-describedby], [role=status], [aria-live=polite]">
+        <h3>Form Validation & Live Region Toast</h3>
+        <form id="lab-form" novalidate onsubmit="return false;">
+          <div style="margin-bottom: 1rem;">
+            <label for="email-input">Email Address (Required):</label><br>
+            <input type="email" id="email-input" aria-required="true">
+            <div id="email-error" class="fail" style="display:none;"></div>
+          </div>
+          <button type="submit" id="submit-lab-form">Submit & Show Toast</button>
+        </form>
+        <div id="toast-region" role="status" aria-live="polite" style="margin-top: 1rem; font-weight: bold;"></div>
+      </div>
+      
+      <!-- Sortable Data Table -->
+      <div class="component-block" data-inspector="table, caption, th[aria-sort]">
+        <h3>Data Table</h3>
+        <table>
+          <caption>Web Content Accessibility Guidelines Versions</caption>
+          <thead>
+            <tr>
+              <th scope="col" role="columnheader" aria-sort="none"><button id="sort-btn">Version (Click to sort)</button></th>
+              <th scope="col">Year Released</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr><td>WCAG 2.0</td><td>2008</td></tr>
+            <tr><td>WCAG 2.1</td><td>2018</td></tr>
+            <tr><td>WCAG 2.2</td><td>2023</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- Event Log -->
+    <div id="event-log" aria-hidden="true">
+      <strong>Live Keyboard Log (SC 2.4.3)</strong>
+      <ul id="log-list"></ul>
+    </div>
+  </section>
+
+  <!-- MODULE 2: CONTRAST TESTER -->
+  <section id="panel-2" role="tabpanel" tabindex="0" aria-labelledby="tab-2">
+    <h2>Contrast & Magnification Tester</h2>
+    <p>Calculates WCAG 2.x relative luminance (SC 1.4.3, 1.4.11).</p>
+    
+    <div class="color-checker">
+      <div>
+        <label for="fg-color">Text Color (Hex):</label><br>
+        <input type="color" id="fg-color-pick" value="#1a1a1a">
+        <input type="text" id="fg-color" value="#1a1a1a">
+      </div>
+      <div>
+        <label for="bg-color">Background Color (Hex):</label><br>
+        <input type="color" id="bg-color-pick" value="#ffffff">
+        <input type="text" id="bg-color" value="#ffffff">
+      </div>
+    </div>
+    
+    <div id="contrast-preview" class="preview-box">
+      Sample Text Preview
+    </div>
+    <div style="margin-top: 1rem;">
+      <strong>Contrast Ratio: </strong> <span id="ratio-output" style="font-size: 1.5rem;"></span>
+      <ul style="list-style: none; padding: 0;">
+        <li>Normal Text AA (4.5:1): <span id="res-normal-aa"></span></li>
+        <li>Large Text AA (3.0:1): <span id="res-large-aa"></span></li>
+        <li>UI Components AA (3.0:1): <span id="res-ui-aa"></span></li>
+      </ul>
+      <button id="suggest-color-btn">Suggest Passing Color</button>
+    </div>
+
+    <hr style="margin: 2rem 0; border: 1px solid var(--border);">
+    
+    <h3>Vision Simulations</h3>
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+      <button onclick="document.body.style.filter = 'url(#protanopia)'">Protanopia</button>
+      <button onclick="document.body.style.filter = 'url(#deuteranopia)'">Deuteranopia</button>
+      <button onclick="document.body.style.filter = 'url(#achromatopsia)'">Achromatopsia (Grayscale)</button>
+      <button onclick="document.body.style.filter = 'none'">Reset Filters</button>
+    </div>
+    
+    <hr style="margin: 2rem 0; border: 1px solid var(--border);">
+    
+    <h3>Zoom & Reflow Simulator (SC 1.4.4, 1.4.10, 1.4.12)</h3>
+    <p>Use these buttons to force the page layout to simulate zooming environments.</p>
+    <button id="zoom-200">Simulate 200% Zoom</button>
+    <button id="reflow-320">Reflow to 320px width</button>
+    <button id="text-spacing">Apply SC 1.4.12 Text Spacing</button>
+    <button id="reset-zoom">Reset View</button>
+  </section>
+
+  <!-- MODULE 3: WORKSHOP -->
+  <section id="panel-3" role="tabpanel" tabindex="0" aria-labelledby="tab-3">
+    <h2>WCAG 2.1 Remediation Workshop</h2>
+    <div style="margin-bottom: 1rem;">
+      <label><input type="checkbox" id="toggle-remediation"> Show Remediated (After) UI</label>
+      <span aria-live="polite" id="progress-indicator" style="margin-left: 1rem; font-weight: bold;">Issues Fixed: 0/15</span>
+    </div>
+
+    <div class="split-view">
+      <!-- BEFORE UI -->
+      <div id="ui-before" class="ui-mockup bad-ui" aria-label="Inaccessible Mock UI">
+        <h3 style="font-size: 1.2rem; margin:0;">Inaccessible Product Card</h3>
+        <!-- Issue: Skipped heading level (h3 to h5) -->
+        <h5>Product Details</h5>
+        <!-- Issue: No alt text -->
+        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" width="100" height="100" style="background:#ccc; display:block; margin: 10px 0;">
+        
+        <!-- Issue: Form without labels, low contrast border -->
+        <input type="text" placeholder="Quantity">
+        <br><br>
+        
+        <!-- Issue: Div as button, keyboard trap (tabindex=1) -->
+        <div class="bad-btn" tabindex="1" onclick="alert('Added!')">Add to Cart</div>
+        
+        <!-- Issue: Color only error -->
+        <p style="color: red; margin-top: 10px;">Error occurred</p>
+        
+        <!-- Issue: Link text is vague -->
+        <a href="#">Click here</a>
+      </div>
+
+      <!-- AFTER UI -->
+      <div id="ui-after" class="ui-mockup" style="display:none;" aria-label="Accessible Mock UI">
+        <h3 style="font-size: 1.2rem; margin:0;">Accessible Product Card</h3>
+        <h4>Product Details</h4>
+        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" width="100" height="100" alt="Placeholder image of a grey square" style="display:block; margin: 10px 0; border: 1px solid var(--border);">
+        
+        <label for="good-qty">Quantity</label><br>
+        <input type="number" id="good-qty" value="1" style="border: 1px solid #767676;">
+        <br><br>
+        
+        <button onclick="document.getElementById('good-msg').textContent='Added to cart';">Add to Cart</button>
+        
+        <p id="good-msg" aria-live="polite" style="color: var(--error);">
+          <span class="visually-hidden">Error:</span> Server timeout.
+        </p>
+        
+        <a href="#">Read shipping policy</a>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 2rem;">Issue Tracker</h3>
+    <table id="issue-table">
+      <thead>
+        <tr>
+          <th>Mark Fixed</th>
+          <th>WCAG SC</th>
+          <th>Description</th>
+          <th>Failure</th>
+        </tr>
+      </thead>
+      <tbody id="issue-tbody">
+        <!-- Generated by JS -->
+      </tbody>
+    </table>
+  </section>
+
+  <!-- MODULE 4: AUDIT REPORT -->
+  <section id="panel-4" role="tabpanel" tabindex="0" aria-labelledby="tab-4">
+    <h2>Audit Checklist & Report Generator</h2>
+    <p>Follows the POUR principles (Perceivable, Operable, Understandable, Robust).</p>
+    
+    <div id="checklist-container"></div>
+    
+    <button id="gen-report" style="margin-top: 1rem;">Generate Report</button>
+    <div id="report-output" aria-live="polite" style="margin-top: 1rem; padding: 1rem; border: 1px solid var(--border); display: none;"></div>
+  </section>
+</main>
+
+<script>
+/**
+ * A11y Lab - JavaScript Logic
+ * Includes Tab pattern, ARIA widgets, WCAG Contrast math, and mock tracker logic.
+ * Code is grouped by module functionality.
+ */
+
+// --- GLOBAL: Theme Switcher ---
+document.getElementById('theme-select').addEventListener('change', (e) => {
+  document.documentElement.setAttribute('data-theme', e.target.value);
+});
+
+// --- MODULE 1: TABS & ARIA WIDGETS ---
+const tablist = document.getElementById('main-tablist');
+const tabs = tablist.querySelectorAll('[role="tab"]');
+const panels = document.querySelectorAll('[role="tabpanel"]');
+let tabFocus = 0;
+
+// Tab Keyboard Navigation (WAI-ARIA Pattern)
+tablist.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    tabs[tabFocus].setAttribute('tabindex', -1);
+    if (e.key === 'ArrowRight') {
+      tabFocus++;
+      if (tabFocus >= tabs.length) tabFocus = 0;
+    } else {
+      tabFocus--;
+      if (tabFocus < 0) tabFocus = tabs.length - 1;
+    }
+    tabs[tabFocus].setAttribute('tabindex', 0);
+    tabs[tabFocus].focus();
+  }
+});
+
+tabs.forEach((tab, index) => {
+  tab.addEventListener('click', () => {
+    tabFocus = index;
+    // Reset all tabs
+    tabs.forEach(t => {
+      t.setAttribute('aria-selected', false);
+      t.setAttribute('tabindex', -1);
+    });
+    panels.forEach(p => p.classList.remove('active'));
+    // Activate clicked tab
+    tab.setAttribute('aria-selected', true);
+    tab.setAttribute('tabindex', 0);
+    document.getElementById(tab.getAttribute('aria-controls')).classList.add('active');
+  });
+});
+
+// Accordion
+const accBtn = document.getElementById('acc-btn-1');
+accBtn.addEventListener('click', () => {
+  const expanded = accBtn.getAttribute('aria-expanded') === 'true' || false;
+  accBtn.setAttribute('aria-expanded', !expanded);
+  accBtn.querySelector('.icon').textContent = expanded ? '+' : '-';
+});
+
+// Modal Dialog (Focus Trap)
+const openBtn = document.getElementById('open-modal-btn');
+const closeBtn = document.getElementById('close-modal-btn');
+const modalOverlay = document.getElementById('modal-1');
+const modalDialog = modalOverlay.querySelector('.modal-dialog');
+let previousFocus = null;
+
+openBtn.addEventListener('click', () => {
+  previousFocus = document.activeElement;
+  modalOverlay.classList.add('open');
+  modalOverlay.removeAttribute('aria-hidden');
+  modalDialog.focus(); // focus moves into dialog
+});
+
+function closeModal() {
+  modalOverlay.classList.remove('open');
+  modalOverlay.setAttribute('aria-hidden', 'true');
+  if (previousFocus) previousFocus.focus();
+}
+closeBtn.addEventListener('click', closeModal);
+
+modalOverlay.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeModal();
+  }
+  if (e.key === 'Tab') {
+    // Simple focus trap: if tab on close button, loop back to dialog (normally you'd query all focusables)
+    if (document.activeElement === closeBtn && !e.shiftKey) {
+      e.preventDefault();
+      modalDialog.focus();
+    }
+  }
+});
+
+// Form Validation
+document.getElementById('submit-lab-form').addEventListener('click', () => {
+  const email = document.getElementById('email-input');
+  const errorMsg = document.getElementById('email-error');
+  const toast = document.getElementById('toast-region');
+  
+  if (!email.value.includes('@')) {
+    email.setAttribute('aria-invalid', 'true');
+    email.setAttribute('aria-describedby', 'email-error');
+    errorMsg.textContent = 'Error: Valid email is required.';
+    errorMsg.style.display = 'block';
+    email.focus();
+  } else {
+    email.removeAttribute('aria-invalid');
+    email.removeAttribute('aria-describedby');
+    errorMsg.style.display = 'none';
+    // Announce status message (SC 4.1.3)
+    toast.textContent = 'Form submitted successfully!';
+    setTimeout(() => toast.textContent = '', 3000);
+  }
+});
+
+// Table Sort (Simulated)
+const sortBtn = document.getElementById('sort-btn');
+const th = sortBtn.parentElement;
+sortBtn.addEventListener('click', () => {
+  const current = th.getAttribute('aria-sort');
+  const next = current === 'ascending' ? 'descending' : 'ascending';
+  th.setAttribute('aria-sort', next);
+  document.getElementById('toast-region').textContent = `Table sorted ${next}`;
+});
+
+// ARIA Inspector Toggle
+document.getElementById('inspector-toggle').addEventListener('change', (e) => {
+  const container = document.getElementById('aria-components');
+  e.target.checked ? container.classList.add('aria-inspector') : container.classList.remove('aria-inspector');
+});
+
+// Keyboard Event Log (SC 2.4.3 demonstration)
+const logList = document.getElementById('log-list');
+document.addEventListener('keydown', (e) => {
+  if (document.getElementById('panel-1').classList.contains('active')) {
+    const el = document.activeElement;
+    const name = el.getAttribute('aria-label') || el.innerText || el.tagName;
+    const li = document.createElement('li');
+    li.textContent = `Key: [${e.key}] | Focus on: <${el.tagName.toLowerCase()}> "${name.substring(0,20).trim()}"`;
+    logList.insertBefore(li, logList.firstChild);
+    if (logList.children.length > 5) logList.lastChild.remove();
+  }
+});
+
+
+// --- MODULE 2: CONTRAST MATH ---
+function getLuminance(hex) {
+  let rgb = parseInt(hex.slice(1), 16);
+  let r = (rgb >> 16) & 0xff;
+  let g = (rgb >>  8) & 0xff;
+  let b = (rgb >>  0) & 0xff;
+  let a = [r, g, b].map(function (v) {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+}
+
+function calculateRatio(color1, color2) {
+  const l1 = getLuminance(color1);
+  const l2 = getLuminance(color2);
+  const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+  return ratio.toFixed(2);
+}
+
+function updateContrast() {
+  const fg = document.getElementById('fg-color').value;
+  const bg = document.getElementById('bg-color').value;
+  const preview = document.getElementById('contrast-preview');
+  
+  preview.style.color = fg;
+  preview.style.backgroundColor = bg;
+  
+  const ratio = calculateRatio(fg, bg);
+  document.getElementById('ratio-output').textContent = ratio + ':1';
+  
+  const check = (threshold) => ratio >= threshold ? '<span class="pass">✔ Pass</span>' : '<span class="fail">✘ Fail</span>';
+  
+  document.getElementById('res-normal-aa').innerHTML = check(4.5);
+  document.getElementById('res-large-aa').innerHTML = check(3.0);
+  document.getElementById('res-ui-aa').innerHTML = check(3.0);
+}
+
+['fg-color', 'bg-color', 'fg-color-pick', 'bg-color-pick'].forEach(id => {
+  document.getElementById(id).addEventListener('input', (e) => {
+    // Sync text and color picker inputs
+    const isPick = id.includes('pick');
+    const syncId = isPick ? id.replace('-pick', '') : id + '-pick';
+    document.getElementById(syncId).value = e.target.value;
+    updateContrast();
+  });
+});
+updateContrast();
+
+// Simulators
+document.getElementById('zoom-200').addEventListener('click', () => { document.body.style.fontSize = '200%'; });
+document.getElementById('reflow-320').addEventListener('click', () => { document.body.style.maxWidth = '320px'; });
+document.getElementById('text-spacing').addEventListener('click', () => {
+  document.body.style.lineHeight = '1.5';
+  document.body.style.letterSpacing = '0.12em';
+  document.body.style.wordSpacing = '0.16em';
+  // Paragraph spacing would be added here via class mapping
+});
+document.getElementById('reset-zoom').addEventListener('click', () => {
+  document.body.style.fontSize = '';
+  document.body.style.maxWidth = '';
+  document.body.style.lineHeight = '1.5';
+  document.body.style.letterSpacing = '';
+  document.body.style.wordSpacing = '';
+});
+
+
+// --- MODULE 3: WORKSHOP ISSUES ---
+const issues = [
+  { id: 1, sc: "1.1.1", desc: "Non-text Content", fail: "Image missing alt attribute" },
+  { id: 2, sc: "1.3.1", desc: "Info and Relationships", fail: "Skipped heading level (h3 to h5)" },
+  { id: 3, sc: "1.4.1", desc: "Use of Color", fail: "Error message identified by color alone" },
+  { id: 4, sc: "1.4.3", desc: "Contrast (Minimum)", fail: "Dark blue text on blue button" },
+  { id: 5, sc: "1.4.11", desc: "Non-text Contrast", fail: "Input border lacks 3:1 contrast" },
+  { id: 6, sc: "2.1.1", desc: "Keyboard", fail: "Div used as button lacks space/enter listener" },
+  { id: 7, sc: "2.1.2", desc: "No Keyboard Trap", fail: "Tabindex=1 forces focus sequence error" },
+  { id: 8, sc: "2.4.4", desc: "Link Purpose", fail: "'Click here' is not descriptive" },
+  { id: 9, sc: "3.3.2", desc: "Labels or Instructions", fail: "Input lacks associated <label>" },
+  { id: 10, sc: "4.1.2", desc: "Name, Role, Value", fail: "Div acting as button missing role='button'" },
+  { id: 11, sc: "2.4.7", desc: "Focus Visible", fail: "Missing focus outline (inherent in bad UI block)" },
+  { id: 12, sc: "4.1.3", desc: "Status Messages", fail: "Error alert not wrapped in aria-live" },
+  { id: 13, sc: "1.4.4", desc: "Resize text", fail: "Hardcoded 100px image doesn't scale well" },
+  { id: 14, sc: "2.4.3", desc: "Focus Order", fail: "Positive tabindex interrupts DOM flow" },
+  { id: 15, sc: "3.1.1", desc: "Language of Page", fail: "No lang attribute on sub-component (Mocked globally)" }
+];
+
+const tbody = document.getElementById('issue-tbody');
+issues.forEach(i => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td style="text-align:center;"><input type="checkbox" aria-label="Mark issue ${i.sc} fixed" onchange="updateProgress()"></td>
+    <td><strong>${i.sc}</strong></td>
+    <td>${i.desc}</td>
+    <td>${i.fail}</td>
+  `;
+  tbody.appendChild(tr);
+});
+
+function updateProgress() {
+  const count = document.querySelectorAll('#issue-tbody input:checked').length;
+  document.getElementById('progress-indicator').textContent = `Issues Fixed: ${count}/15`;
+}
+
+document.getElementById('toggle-remediation').addEventListener('change', (e) => {
+  document.getElementById('ui-before').style.display = e.target.checked ? 'none' : 'block';
+  document.getElementById('ui-after').style.display = e.target.checked ? 'block' : 'none';
+});
+
+
+// --- MODULE 4: AUDIT CHECKLIST ---
+const checklist = [
+  { p: "Perceivable", sc: "1.1.1", label: "All images have text alternatives." },
+  { p: "Perceivable", sc: "1.4.3", label: "Text contrast is at least 4.5:1." },
+  { p: "Operable", sc: "2.1.1", label: "All functionality is available from a keyboard." },
+  { p: "Operable", sc: "2.4.7", label: "Keyboard focus indicator is visible." },
+  { p: "Understandable", sc: "3.3.2", label: "Labels are provided when content requires user input." },
+  { p: "Robust", sc: "4.1.2", label: "Custom components have correct name, role, and value." }
+];
+
+const clContainer = document.getElementById('checklist-container');
+checklist.forEach((item, idx) => {
+  const div = document.createElement('div');
+  div.style.marginBottom = '1rem';
+  div.innerHTML = `
+    <strong>${item.p} (SC ${item.sc}):</strong> ${item.label}<br>
+    <label><input type="radio" name="cl-${idx}" value="Pass"> Pass</label>
+    <label><input type="radio" name="cl-${idx}" value="Fail"> Fail</label>
+    <label><input type="radio" name="cl-${idx}" value="N/A" checked> N/A</label>
+  `;
+  clContainer.appendChild(div);
+});
+
+document.getElementById('gen-report').addEventListener('click', () => {
+  const report = document.getElementById('report-output');
+  let passes = 0, fails = 0, nas = 0;
+  
+  checklist.forEach((item, idx) => {
+    const val = document.querySelector(`input[name="cl-${idx}"]:checked`).value;
+    if (val === 'Pass') passes++;
+    if (val === 'Fail') fails++;
+    if (val === 'N/A') nas++;
+  });
+  
+  report.style.display = 'block';
+  report.innerHTML = `
+    <h3>Audit Summary</h3>
+    <p>Total Checks: ${checklist.length} | Passed: ${passes} | Failed: ${fails} | N/A: ${nas}</p>
+    <p>Note: Automated tools catch ~30% of issues. Manual testing verified by this checklist.</p>
+  `;
+});
+</script>
+</body>
+</html>
